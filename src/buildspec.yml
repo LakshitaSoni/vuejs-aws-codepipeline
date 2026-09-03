@@ -38,3 +38,16 @@ phases:
           ]' \
           --comment "Deploying Docker image to EC2" \
           --region ap-south-1
+
+      - |
+        aws ssm send-command \
+        --targets "Key=tag:Name,Values=sample-vuejs-app" \
+        --document-name "AWS-RunShellScript" \
+        --comment "Deploying Docker image to EC2" \
+        --parameters "commands=[
+          \"docker pull $DOCKER_USERNAME/vuejs-aws-codepipeline:latest\",
+          \"docker stop vuejs-aws-codepipeline || true\",
+          \"docker rm vuejs-aws-codepipeline || true\",
+          \"docker run -d --name vuejs-aws-codepipeline -p 8080:80 --restart unless-stopped $DOCKER_USERNAME/vuejs-aws-codepipeline:latest\"
+        ]" \
+        --region ap-sout
