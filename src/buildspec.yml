@@ -1,0 +1,40 @@
+version: 0.2
+
+env:
+  parameter-store:
+    DOCKER_USERNAME: /CodeBuild/docker_credentials/username
+    DOCKER_PASSWORD: /CodeBuild/docker_credentials/password
+    DOCKER_URL: /CodeBuild/docker_registry/url
+        
+phases:
+  pre_build:
+    commands:
+      - echo "Logging In to Docker Hub..."
+      - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin $DOCKER_URL
+    
+  build:
+    commands:
+      - echo "Building Docker image..."
+      - docker build -t "$DOCKER_URL/$DOCKER_USERNAME/vuejs-aws-codepipeline:latest" .
+    
+  post_build:
+    commands:
+      - echo "Pushing Docker image to Docker Hub..."
+      - docker push "$DOCKER_URL/$DOCKER_USERNAME/vuejs-aws-codepipeline:latest"
+      - echo "Docker image pushed successfully"
+
+      - echo "Deploying Docker image to EC2 using SSM..."
+
+      - |
+        aws ssm send-command \
+          --targets "Key=tag:Name,Values=sample-vuejs-app" \
+          --document-name "AWS-RunShellScript" \
+          --comment "Deploying Docker image to EC2" \
+          --parameters 'commands=[
+            "docker pull $DOCKER_USERNAME/vuejs-aws-codepipeline:latest", 
+            "docker stop vuejs-aws-codepipeline || true", 
+            "docker rm vuejs-aws-codepipeline || true", 
+            "docker run -d --name vuejs-aws-codepipeline -p 8080:80 --restart unless-stopped $DOCKER_USERNAME/vuejs-aws-codepipeline:latest"
+          ]' \
+          --comment "Deploying Docker image to EC2" \
+          --region ap-south-1
